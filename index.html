@@ -14,6 +14,7 @@
 <div class="layout">
 <aside class="card">
 <h2 style="font-size:17px;margin-top:0">Transformation matrix A</h2>
+<p class="muted">Edit the entries or choose a preset.</p>
 <div id="matrix" class="matrix"></div>
 <div class="buttons"><button id="p1" class="primary">Scaling</button><button id="p2">Non-uniform scaling</button><button id="p3">Shear</button><button id="p4">Rotation</button><button id="p5">Reflection</button><button id="p6">Projection</button></div>
 <div class="section"><h3>Eigenvalues</h3><div id="evals" class="readout"></div></div>
@@ -38,7 +39,12 @@
 (() => {
     'use strict';
 
+    // ============================================================
+    // DOM References & Application State
+    // ============================================================
+
     const $ = s => document.querySelector(s);
+
     const canvas = $('#canvas');
     const ctx = canvas.getContext('2d');
 
@@ -54,64 +60,71 @@
         [0, 0, 1.5]
     ];
 
-    let B = [1, .65, .3];
+    let B = [1, 0.65, 0.3];
 
     let preset = 'scaling';
     let rotationAxis = 'z';
     let reflectionPlane = 'xy';
     let projectionTarget = 'xy';
 
-    const minmax = (v, a, b) => Math.max(a, Math.min(b, v));
 
     // ============================================================
-    // Matrix Inputs
+    // General Utility
+    // ============================================================
+
+    const minmax = (v, a, b) =>
+        Math.max(a, Math.min(b, v));
+
+
+    // ============================================================
+    // Matrix A Inputs
     // ============================================================
 
     const mInputs = [];
 
     for (let r = 0; r < 3; r++) {
         for (let c = 0; c < 3; c++) {
-            let i = document.createElement('input');
+            let input = document.createElement('input');
 
-            i.type = 'number';
-            i.step = '.1';
-            i.value = A[r][c];
+            input.type = 'number';
+            input.step = '.1';
+            input.value = A[r][c];
 
-            i.setAttribute(
+            input.setAttribute(
                 'aria-label',
                 `A row ${r + 1} column ${c + 1}`
             );
 
-            matrixBox.append(i);
-            mInputs.push(i);
+            matrixBox.append(input);
+            mInputs.push(input);
 
-            i.addEventListener('input', syncA);
+            input.addEventListener('input', syncA);
         }
     }
 
 
     // ============================================================
-    // Vector B Inputs
+    // Vector B Manual Inputs
     // ============================================================
 
     const bInputs = [];
 
     for (let k = 0; k < 3; k++) {
-        let i = document.createElement('input');
+        let input = document.createElement('input');
 
-        i.type = 'number';
-        i.step = '.1';
-        i.value = B[k];
+        input.type = 'number';
+        input.step = '.1';
+        input.value = B[k];
 
-        i.setAttribute(
+        input.setAttribute(
             'aria-label',
             `B component ${k + 1}`
         );
 
-        vecBox.append(i);
-        bInputs.push(i);
+        vecBox.append(input);
+        bInputs.push(input);
 
-        i.addEventListener('input', () => {
+        input.addEventListener('input', () => {
             B = snapToEigenvector(
                 bInputs.map(x => Number(x.value) || 0)
             );
@@ -141,6 +154,7 @@
     bSliders.forEach((slider, k) => {
         slider.addEventListener('input', () => {
             B[k] = Number(slider.value);
+
             B = snapToEigenvector(B);
 
             syncBInputs();
@@ -174,8 +188,8 @@
     function setA(x) {
         A = x;
 
-        mInputs.forEach((i, k) => {
-            i.value = Number(
+        mInputs.forEach((input, k) => {
+            input.value = Number(
                 A[Math.floor(k / 3)][k % 3].toFixed(6)
             );
         });
@@ -191,19 +205,19 @@
 
 
     // ============================================================
-    // Transformation Controls
+    // Transformation Control Configuration
     // ============================================================
 
     function configureParam(reset = false) {
         let single = $('#singleControls');
-        let nu = $('#nonuniformControls');
-        let ref = $('#reflectionControls');
-        let proj = $('#projectionControls');
+        let nonuniform = $('#nonuniformControls');
+        let reflection = $('#reflectionControls');
+        let projection = $('#projectionControls');
 
         single.hidden = true;
-        nu.hidden = true;
-        ref.hidden = true;
-        proj.hidden = true;
+        nonuniform.hidden = true;
+        reflection.hidden = true;
+        projection.hidden = true;
 
         if (
             preset === 'scaling' ||
@@ -213,26 +227,26 @@
         ) {
             single.hidden = false;
 
-            let t = $('#t');
+            let slider = $('#t');
             let label = $('#paramLabel');
-            let out = $('#tout');
-            let anim = $('#animate');
-            let rotCtl = $('#rotationAxisControls');
+            let output = $('#tout');
+            let animate = $('#animate');
+            let rotationControls = $('#rotationAxisControls');
 
-            rotCtl.hidden = preset !== 'rotation';
+            rotationControls.hidden = preset !== 'rotation';
 
-            t.disabled = preset === 'custom';
-            anim.disabled = preset === 'custom';
+            slider.disabled = preset === 'custom';
+            animate.disabled = preset === 'custom';
 
             if (preset === 'scaling') {
                 label.textContent = 'Scale factor s';
 
-                t.min = -2;
-                t.max = 3;
-                t.step = .05;
+                slider.min = -2;
+                slider.max = 3;
+                slider.step = .05;
 
                 if (reset) {
-                    t.value = 1.5;
+                    slider.value = 1.5;
                 }
 
                 applyParam();
@@ -241,12 +255,12 @@
             else if (preset === 'shear') {
                 label.textContent = 'Shear factor k';
 
-                t.min = -2;
-                t.max = 2;
-                t.step = .05;
+                slider.min = -2;
+                slider.max = 2;
+                slider.step = .05;
 
                 if (reset) {
-                    t.value = 1;
+                    slider.value = 1;
                 }
 
                 applyParam();
@@ -255,35 +269,35 @@
             else if (preset === 'rotation') {
                 label.textContent = 'Rotation angle θ';
 
-                t.min = -180;
-                t.max = 180;
-                t.step = 1;
+                slider.min = -180;
+                slider.max = 180;
+                slider.step = 1;
 
                 if (reset) {
-                    t.value = 90;
+                    slider.value = 90;
                     rotationAxis = 'z';
                 }
 
                 document
                     .querySelectorAll('[data-rotate]')
-                    .forEach(b =>
-                        b.classList.toggle(
+                    .forEach(button => {
+                        button.classList.toggle(
                             'active',
-                            b.dataset.rotate === rotationAxis
-                        )
-                    );
+                            button.dataset.rotate === rotationAxis
+                        );
+                    });
 
                 applyParam();
             }
 
             else {
                 label.textContent = 'Custom matrix';
-                out.value = 'manual entries';
+                output.value = 'manual entries';
             }
         }
 
         else if (preset === 'nonuniform') {
-            nu.hidden = false;
+            nonuniform.hidden = false;
 
             if (reset) {
                 $('#sx').value = 2;
@@ -295,7 +309,7 @@
         }
 
         else if (preset === 'reflection') {
-            ref.hidden = false;
+            reflection.hidden = false;
 
             if (reset) {
                 reflectionPlane = 'xy';
@@ -305,7 +319,7 @@
         }
 
         else if (preset === 'projection') {
-            proj.hidden = false;
+            projection.hidden = false;
 
             if (reset) {
                 projectionTarget = 'xy';
@@ -321,57 +335,67 @@
     // ============================================================
 
     function applyParam() {
-        let v = Number($('#t').value);
+        let value = Number($('#t').value);
 
+        // Uniform scaling
         if (preset === 'scaling') {
             setA([
-                [v, 0, 0],
-                [0, v, 0],
-                [0, 0, v]
+                [value, 0, 0],
+                [0, value, 0],
+                [0, 0, value]
             ]);
 
-            $('#tout').value = v.toFixed(2);
+            $('#tout').value = value.toFixed(2);
         }
 
+        // X shear
         else if (preset === 'shear') {
             setA([
-                [1, v, 0],
+                [1, value, 0],
                 [0, 1, 0],
                 [0, 0, 1]
             ]);
 
-            $('#tout').value = v.toFixed(2);
+            $('#tout').value = value.toFixed(2);
         }
 
+        // Rotation
         else if (preset === 'rotation') {
-            let r = v * Math.PI / 180;
-            let c = Math.cos(r);
-            let s = Math.sin(r);
+            let radians = value * Math.PI / 180;
 
-            let M =
-                rotationAxis === 'x'
-                    ? [
-                        [1, 0, 0],
-                        [0, c, -s],
-                        [0, s, c]
-                    ]
+            let c = Math.cos(radians);
+            let s = Math.sin(radians);
 
-                    : rotationAxis === 'y'
-                    ? [
-                        [c, 0, s],
-                        [0, 1, 0],
-                        [-s, 0, c]
-                    ]
+            let matrix;
 
-                    : [
-                        [c, -s, 0],
-                        [s, c, 0],
-                        [0, 0, 1]
-                    ];
+            if (rotationAxis === 'x') {
+                matrix = [
+                    [1, 0, 0],
+                    [0, c, -s],
+                    [0, s, c]
+                ];
+            }
 
-            setA(M);
+            else if (rotationAxis === 'y') {
+                matrix = [
+                    [c, 0, s],
+                    [0, 1, 0],
+                    [-s, 0, c]
+                ];
+            }
 
-            $('#tout').value = Math.round(v) + '°';
+            else {
+                matrix = [
+                    [c, -s, 0],
+                    [s, c, 0],
+                    [0, 0, 1]
+                ];
+            }
+
+            setA(matrix);
+
+            $('#tout').value =
+                Math.round(value) + '°';
         }
     }
 
@@ -394,7 +418,7 @@
 
 
     function applyReflection() {
-        let mats = {
+        let matrices = {
             xy: [
                 [1, 0, 0],
                 [0, 1, 0],
@@ -416,19 +440,19 @@
 
         document
             .querySelectorAll('[data-reflect]')
-            .forEach(b =>
-                b.classList.toggle(
+            .forEach(button => {
+                button.classList.toggle(
                     'active',
-                    b.dataset.reflect === reflectionPlane
-                )
-            );
+                    button.dataset.reflect === reflectionPlane
+                );
+            });
 
-        setA(mats[reflectionPlane]);
+        setA(matrices[reflectionPlane]);
     }
 
 
     function applyProjection() {
-        let mats = {
+        let matrices = {
             x: [
                 [1, 0, 0],
                 [0, 0, 0],
@@ -468,14 +492,14 @@
 
         document
             .querySelectorAll('[data-project]')
-            .forEach(b =>
-                b.classList.toggle(
+            .forEach(button => {
+                button.classList.toggle(
                     'active',
-                    b.dataset.project === projectionTarget
-                )
-            );
+                    button.dataset.project === projectionTarget
+                );
+            });
 
-        setA(mats[projectionTarget]);
+        setA(matrices[projectionTarget]);
     }
 
 
@@ -485,18 +509,18 @@
 
     document
         .querySelectorAll('[data-rotate]')
-        .forEach(b => {
-            b.onclick = () => {
-                rotationAxis = b.dataset.rotate;
+        .forEach(button => {
+            button.onclick = () => {
+                rotationAxis = button.dataset.rotate;
 
                 document
                     .querySelectorAll('[data-rotate]')
-                    .forEach(x =>
-                        x.classList.toggle(
+                    .forEach(otherButton => {
+                        otherButton.classList.toggle(
                             'active',
-                            x.dataset.rotate === rotationAxis
-                        )
-                    );
+                            otherButton.dataset.rotate === rotationAxis
+                        );
+                    });
 
                 applyParam();
             };
@@ -511,9 +535,9 @@
 
     document
         .querySelectorAll('[data-reflect]')
-        .forEach(b => {
-            b.onclick = () => {
-                reflectionPlane = b.dataset.reflect;
+        .forEach(button => {
+            button.onclick = () => {
+                reflectionPlane = button.dataset.reflect;
                 applyReflection();
             };
         });
@@ -521,9 +545,9 @@
 
     document
         .querySelectorAll('[data-project]')
-        .forEach(b => {
-            b.onclick = () => {
-                projectionTarget = b.dataset.project;
+        .forEach(button => {
+            button.onclick = () => {
+                projectionTarget = button.dataset.project;
                 applyProjection();
             };
         });
@@ -580,7 +604,7 @@
 
 
     const mul = (M, v) =>
-        M.map(r => dot(r, v));
+        M.map(row => dot(row, v));
 
 
     const det = M =>
@@ -601,11 +625,11 @@
 
 
     // ============================================================
-    // Eigenvalues
+    // Eigenvalue Calculation
     // ============================================================
 
     function roots(M) {
-        let tr =
+        let trace =
             M[0][0] +
             M[1][1] +
             M[2][2];
@@ -618,17 +642,20 @@
             )
         );
 
-        let tr2 =
+        let trace2 =
             M2[0][0] +
             M2[1][1] +
             M2[2][2];
 
-        let s = (tr * tr - tr2) / 2;
-        let d = det(M);
+        let s =
+            (trace * trace - trace2) / 2;
 
-        let a = -tr;
+        let determinant =
+            det(M);
+
+        let a = -trace;
         let b = s;
-        let c = -d;
+        let c = -determinant;
 
         let p =
             b -
@@ -643,16 +670,20 @@
             q * q / 4 +
             p * p * p / 27;
 
+
+        // One real eigenvalue and one complex-conjugate pair
         if (D > 1e-10) {
-            let sd = Math.sqrt(D);
+            let sqrtD = Math.sqrt(D);
 
-            let u = Math.cbrt(
-                -q / 2 + sd
-            );
+            let u =
+                Math.cbrt(
+                    -q / 2 + sqrtD
+                );
 
-            let v = Math.cbrt(
-                -q / 2 - sd
-            );
+            let v =
+                Math.cbrt(
+                    -q / 2 - sqrtD
+                );
 
             return [
                 {
@@ -663,24 +694,35 @@
                 {
                     re: -(u + v) / 2 - a / 3,
                     im: Math.abs(
-                        Math.sqrt(3) * (u - v) / 2
+                        Math.sqrt(3) *
+                        (u - v) /
+                        2
                     )
                 },
 
                 {
                     re: -(u + v) / 2 - a / 3,
                     im: -Math.abs(
-                        Math.sqrt(3) * (u - v) / 2
+                        Math.sqrt(3) *
+                        (u - v) /
+                        2
                     )
                 }
             ];
         }
 
+
         let rr =
-            2 * Math.sqrt(
-                Math.max(0, -p / 3)
+            2 *
+            Math.sqrt(
+                Math.max(
+                    0,
+                    -p / 3
+                )
             );
 
+
+        // Triple repeated root
         if (rr < 1e-9) {
             return [0, 1, 2].map(() => ({
                 re: -a / 3,
@@ -688,20 +730,28 @@
             }));
         }
 
-        let ph = Math.acos(
-            minmax(
-                (3 * q / (2 * p)) *
-                Math.sqrt(-3 / p),
-                -1,
-                1
-            )
-        );
+
+        let phi =
+            Math.acos(
+                minmax(
+                    (3 * q / (2 * p)) *
+                    Math.sqrt(-3 / p),
+                    -1,
+                    1
+                )
+            );
+
 
         return [0, 1, 2].map(k => ({
             re:
                 rr *
                 Math.cos(
-                    (ph + 2 * Math.PI * k) / 3
+                    (
+                        phi +
+                        2 * Math.PI * k
+                    )
+                    /
+                    3
                 )
                 -
                 a / 3,
@@ -712,31 +762,219 @@
 
 
     // ============================================================
-    // Eigenvectors
+    // Nullspace / Eigenspace Calculation
     // ============================================================
 
-    function eigvec(M, l) {
-        let N = M.map((r, i) =>
-            r.map((x, j) =>
-                x - (i === j ? l : 0)
-            )
-        );
+    function nullspaceBasis(M, tol = 1e-8) {
+        // Copy matrix so the original is not modified.
+        let R =
+            M.map(row => row.slice());
 
-        let cs = [
-            cross(N[0], N[1]),
-            cross(N[0], N[2]),
-            cross(N[1], N[2])
-        ].sort(
-            (a, b) =>
-                norm(b) - norm(a)
-        );
+        let pivotCols = [];
+        let row = 0;
 
-        return normalize(cs[0]);
+
+        // Row-reduce the 3x3 matrix.
+        for (
+            let col = 0;
+            col < 3 && row < 3;
+            col++
+        ) {
+            let pivot = row;
+
+
+            // Find the strongest pivot in this column.
+            for (
+                let r = row + 1;
+                r < 3;
+                r++
+            ) {
+                if (
+                    Math.abs(R[r][col]) >
+                    Math.abs(R[pivot][col])
+                ) {
+                    pivot = r;
+                }
+            }
+
+
+            // No pivot in this column.
+            if (
+                Math.abs(R[pivot][col]) <= tol
+            ) {
+                continue;
+            }
+
+
+            // Swap pivot row into place.
+            [R[row], R[pivot]] =
+                [R[pivot], R[row]];
+
+
+            // Normalize the pivot row.
+            let divisor =
+                R[row][col];
+
+            for (
+                let c = 0;
+                c < 3;
+                c++
+            ) {
+                R[row][c] /= divisor;
+            }
+
+
+            // Eliminate this column from every other row.
+            for (
+                let r = 0;
+                r < 3;
+                r++
+            ) {
+                if (r === row) {
+                    continue;
+                }
+
+                let factor =
+                    R[r][col];
+
+                if (
+                    Math.abs(factor) > tol
+                ) {
+                    for (
+                        let c = 0;
+                        c < 3;
+                        c++
+                    ) {
+                        R[r][c] -=
+                            factor *
+                            R[row][c];
+                    }
+                }
+            }
+
+
+            pivotCols.push(col);
+            row++;
+        }
+
+
+        // Columns without pivots represent free variables.
+        let freeCols =
+            [0, 1, 2].filter(
+                c =>
+                    !pivotCols.includes(c)
+            );
+
+
+        let basis = [];
+
+
+        // Construct one nullspace basis vector
+        // for each free variable.
+        for (let free of freeCols) {
+            let v = [0, 0, 0];
+
+            v[free] = 1;
+
+
+            for (
+                let r = pivotCols.length - 1;
+                r >= 0;
+                r--
+            ) {
+                let pivotColumn =
+                    pivotCols[r];
+
+                let sum = 0;
+
+
+                for (
+                    let c = pivotColumn + 1;
+                    c < 3;
+                    c++
+                ) {
+                    sum +=
+                        R[r][c] *
+                        v[c];
+                }
+
+
+                v[pivotColumn] =
+                    -sum;
+            }
+
+
+            basis.push(
+                normalize(v)
+            );
+        }
+
+
+        return basis;
+    }
+
+
+    function eigenspace(M, lambda) {
+        // Construct A - λI.
+        let N =
+            M.map((row, i) =>
+                row.map((x, j) =>
+                    x -
+                    (
+                        i === j
+                            ? lambda
+                            : 0
+                    )
+                )
+            );
+
+        // Eigenvectors are the nonzero vectors
+        // in Null(A - λI).
+        return nullspaceBasis(N);
     }
 
 
     // ============================================================
-    // Eigenvector Snapping
+    // Orthonormal Basis
+    // ============================================================
+
+    function orthonormalBasis(basis) {
+        let output = [];
+
+
+        for (let v of basis) {
+            let w =
+                v.slice();
+
+
+            // Remove components in directions
+            // already added to the basis.
+            for (let u of output) {
+                w =
+                    sub(
+                        w,
+                        scale(
+                            u,
+                            dot(w, u)
+                        )
+                    );
+            }
+
+
+            if (
+                norm(w) > 1e-8
+            ) {
+                output.push(
+                    normalize(w)
+                );
+            }
+        }
+
+        return output;
+    }
+
+    // ============================================================
+    // Snap Vector B to an Eigenspace
     // ============================================================
 
     function snapToEigenvector(v) {
@@ -747,42 +985,78 @@
             return v;
         }
 
+
         let best = null;
         let bestCos = -1;
 
-        for (let e of (window.realEigs || [])) {
-            let ev = normalize(e.v);
-            let nv = normalize(v);
+        let magnitude =
+            norm(v);
 
-            let c = dot(nv, ev);
-            let ac = Math.abs(c);
 
-            if (ac > bestCos) {
-                bestCos = ac;
+        for (
+            let space of
+            (window.realEigenspaces || [])
+        ) {
+            let basis =
+                orthonormalBasis(
+                    space.basis
+                );
 
-                best = {
-                    ev,
-                    c
-                };
+
+            if (!basis.length) {
+                continue;
+            }
+
+
+            // Project B onto this eigenspace.
+            let projection =
+                [0, 0, 0];
+
+
+            for (let u of basis) {
+                projection =
+                    add(
+                        projection,
+                        scale(
+                            u,
+                            dot(v, u)
+                        )
+                    );
+            }
+
+
+            // Compare the projection to B.
+            let cosine =
+                norm(projection) /
+                magnitude;
+
+
+            if (
+                cosine > bestCos
+            ) {
+                bestCos =
+                    cosine;
+
+                best =
+                    projection;
             }
         }
 
+
+        // Only snap when sufficiently close.
         if (
             !best ||
-            bestCos < SNAP_COS
+            bestCos < SNAP_COS ||
+            norm(best) < 1e-9
         ) {
             return v;
         }
 
-        let magnitude = norm(v);
-        let sign =
-            best.c < 0
-                ? -1
-                : 1;
 
+        // Preserve the original magnitude of B.
         return scale(
-            best.ev,
-            magnitude * sign
+            normalize(best),
+            magnitude
         );
     }
 
@@ -792,18 +1066,22 @@
     // ============================================================
 
     function syncBInputs() {
-        bInputs.forEach((i, k) => {
-            i.value = B[k].toFixed(3);
+        bInputs.forEach((input, k) => {
+            input.value =
+                B[k].toFixed(3);
         });
 
-        bSliders.forEach((slider, k) => {
-            let v = minmax(
-                B[k],
-                Number(slider.min),
-                Number(slider.max)
-            );
 
-            slider.value = v.toFixed(3);
+        bSliders.forEach((slider, k) => {
+            let value =
+                minmax(
+                    B[k],
+                    Number(slider.min),
+                    Number(slider.max)
+                );
+
+            slider.value =
+                value.toFixed(3);
 
             bSliderOuts[k].value =
                 B[k].toFixed(2);
@@ -813,10 +1091,14 @@
 
     // ============================================================
     // 3D Camera
+    //
+    // World convention:
+    // X and Y form the horizontal plane.
+    // Z points vertically upward.
     // ============================================================
 
-    let yaw = -.7;
-    let pitch = .45;
+    let yaw = -0.7;
+    let pitch = 0.55;
     let zoom = 95;
 
     let drag = null;
@@ -828,80 +1110,127 @@
 
 
     function rot(v) {
-        let cy = Math.cos(yaw);
-        let sy = Math.sin(yaw);
+        let cosYaw =
+            Math.cos(yaw);
 
-        let cp = Math.cos(pitch);
-        let sp = Math.sin(pitch);
+        let sinYaw =
+            Math.sin(yaw);
 
-        let x =
-            cy * v[0] +
-            sy * v[2];
+        let cosPitch =
+            Math.cos(pitch);
 
-        let z =
-            -sy * v[0] +
-            cy * v[2];
+        let sinPitch =
+            Math.sin(pitch);
 
-        let y = v[1];
+
+        // Rotate around the vertical Z-axis.
+        let x1 =
+            cosYaw * v[0] -
+            sinYaw * v[1];
+
+        let y1 =
+            sinYaw * v[0] +
+            cosYaw * v[1];
+
+        let z1 =
+            v[2];
+
+
+        // Pitch the camera while preserving Z-up world coordinates.
+        let screenY =
+            sinPitch * y1 +
+            cosPitch * z1;
+
+        let depth =
+            cosPitch * y1 -
+            sinPitch * z1;
+
 
         return [
-            x,
-            cp * y - sp * z,
-            sp * y + cp * z
+            x1,
+            screenY,
+            depth
         ];
     }
 
 
     function project(v) {
-        let r = rot(v);
+        let rotated =
+            rot(v);
 
-        let w = canvas.clientWidth;
-        let h = canvas.clientHeight;
+        let width =
+            canvas.clientWidth;
+
+        let height =
+            canvas.clientHeight;
+
 
         return {
-            x: w / 2 + r[0] * zoom,
-            y: h / 2 - r[1] * zoom,
-            z: r[2]
+            x:
+                width / 2 +
+                rotated[0] * zoom,
+
+            y:
+                height / 2 -
+                rotated[1] * zoom,
+
+            z:
+                rotated[2]
         };
     }
 
 
-    function worldFromScreenOnViewPlane(screenX, screenY) {
-        let w = canvas.clientWidth;
-        let h = canvas.clientHeight;
+    function worldFromScreenOnViewPlane(
+        screenX,
+        screenY
+    ) {
+        let width =
+            canvas.clientWidth;
+
+        let height =
+            canvas.clientHeight;
+
 
         let rx =
-            (screenX - w / 2) /
+            (screenX - width / 2) /
             zoom;
 
         let ry =
-            -(screenY - h / 2) /
+            -(screenY - height / 2) /
             zoom;
 
-        let cp = Math.cos(pitch);
-        let sp = Math.sin(pitch);
 
-        let cy = Math.cos(yaw);
-        let sy = Math.sin(yaw);
+        let cosPitch =
+            Math.cos(pitch);
 
-        let worldY =
-            cp * ry;
+        let sinPitch =
+            Math.sin(pitch);
 
-        let worldZ =
-            -sp * ry;
+        let cosYaw =
+            Math.cos(yaw);
 
-        let worldX =
-            cy * rx -
-            sy * worldZ;
+        let sinYaw =
+            Math.sin(yaw);
 
-        let finalZ =
-            sy * rx +
-            cy * worldZ;
+
+        let x1 =
+            rx;
+
+        let y1 =
+            sinPitch * ry;
+
+        let z1 =
+            cosPitch * ry;
+
 
         return [
-            worldX,
-            worldY,
-            finalZ
+            cosYaw * x1 +
+            sinYaw * y1,
+
+            -sinYaw * x1 +
+            cosYaw * y1,
+
+            z1
         ];
     }
 
@@ -911,26 +1240,39 @@
     // ============================================================
 
     function resize() {
-        let d = devicePixelRatio || 1;
+        let density =
+            devicePixelRatio || 1;
 
-        let w = canvas.clientWidth;
-        let h = canvas.clientHeight;
+        let width =
+            canvas.clientWidth;
+
+        let height =
+            canvas.clientHeight;
+
 
         if (
-            canvas.width !== Math.round(w * d) ||
-            canvas.height !== Math.round(h * d)
+            canvas.width !==
+                Math.round(width * density) ||
+
+            canvas.height !==
+                Math.round(height * density)
         ) {
             canvas.width =
-                Math.round(w * d);
+                Math.round(
+                    width * density
+                );
 
             canvas.height =
-                Math.round(h * d);
+                Math.round(
+                    height * density
+                );
+
 
             ctx.setTransform(
-                d,
+                density,
                 0,
                 0,
-                d,
+                density,
                 0,
                 0
             );
@@ -945,8 +1287,12 @@
         width = 2,
         dash = []
     ) {
-        let p = project(a);
-        let q = project(b);
+        let p =
+            project(a);
+
+        let q =
+            project(b);
+
 
         ctx.beginPath();
 
@@ -962,8 +1308,12 @@
             q.y
         );
 
-        ctx.strokeStyle = color;
-        ctx.lineWidth = width;
+
+        ctx.strokeStyle =
+            color;
+
+        ctx.lineWidth =
+            width;
 
         ctx.stroke();
 
@@ -984,21 +1334,32 @@
             width
         );
 
-        let p = project(a);
-        let q = project(b);
 
-        let dx = q.x - p.x;
-        let dy = q.y - p.y;
+        let p =
+            project(a);
 
-        let L =
+        let q =
+            project(b);
+
+
+        let dx =
+            q.x - p.x;
+
+        let dy =
+            q.y - p.y;
+
+        let length =
             Math.hypot(dx, dy);
 
-        if (L < 8) {
+
+        if (length < 8) {
             return;
         }
 
-        dx /= L;
-        dy /= L;
+
+        dx /= length;
+        dy /= length;
+
 
         ctx.beginPath();
 
@@ -1019,13 +1380,16 @@
 
         ctx.closePath();
 
-        ctx.fillStyle = color;
+
+        ctx.fillStyle =
+            color;
+
         ctx.fill();
     }
 
 
     // ============================================================
-    // Cube Geometry
+    // Unit Cube Geometry
     // ============================================================
 
     const verts = [];
@@ -1033,7 +1397,11 @@
     for (let z = 0; z <= 1; z++) {
         for (let y = 0; y <= 1; y++) {
             for (let x = 0; x <= 1; x++) {
-                verts.push([x, y, z]);
+                verts.push([
+                    x,
+                    y,
+                    z
+                ]);
             }
         }
     }
@@ -1043,178 +1411,334 @@
         [0, 1],
         [0, 2],
         [0, 4],
+
         [1, 3],
         [1, 5],
+
         [2, 3],
         [2, 6],
+
         [3, 7],
+
         [4, 5],
         [4, 6],
+
         [5, 7],
         [6, 7]
     ];
 
 
     // ============================================================
-    // Main Update
+    // Main Eigenvalue / Eigenvector Update
     // ============================================================
 
     let eigs = [];
 
+
     function update() {
-        eigs = roots(A);
+        eigs =
+            roots(A);
+
+
+        // --------------------------------------------------------
+        // Display eigenvalues
+        // --------------------------------------------------------
 
         $('#evals').innerHTML =
             eigs
                 .map((e, i) =>
-                    `λ${i + 1} = <b>${
+                    `lambda${i + 1} = <b>${
                         e.re.toFixed(3)
                     }${
                         Math.abs(e.im) > 1e-7
+
                             ? (
                                 e.im >= 0
                                     ? ' + '
-                                    : ' − '
+                                    : ' - '
                             )
                             +
                             Math.abs(e.im).toFixed(3)
                             +
                             'i'
+
                             : ''
                     }</b>`
                 )
                 .join('<br>');
 
 
-        let real = [];
-        let seen = [];
+        // --------------------------------------------------------
+        // Find distinct real eigenspaces
+        // --------------------------------------------------------
+
+        let realSpaces = [];
+
 
         for (let e of eigs) {
-            if (Math.abs(e.im) < 1e-7) {
-                let v = eigvec(
+            // Skip complex eigenvalues.
+            if (
+                Math.abs(e.im) >= 1e-7
+            ) {
+                continue;
+            }
+
+
+            // Skip duplicate eigenvalues.
+            if (
+                realSpaces.some(
+                    space =>
+                        Math.abs(
+                            space.l - e.re
+                        ) < 1e-6
+                )
+            ) {
+                continue;
+            }
+
+
+            let basis =
+                eigenspace(
                     A,
                     e.re
                 );
 
-                if (
-                    norm(v) > .5 &&
-                    !seen.some(
-                        x =>
-                            Math.abs(
-                                dot(x, v)
-                            ) > .999
-                    )
-                ) {
-                    seen.push(v);
 
-                    real.push({
-                        l: e.re,
-                        v
-                    });
-                }
+            if (basis.length) {
+                realSpaces.push({
+                    l: e.re,
+                    basis
+                });
             }
         }
 
-        window.realEigs = real;
 
+        window.realEigenspaces =
+            realSpaces;
+
+
+        // Preserve the older flat eigenvector list
+        // for any code that expects it.
+        window.realEigs =
+            realSpaces.flatMap(
+                space =>
+                    space.basis.map(
+                        v => ({
+                            l: space.l,
+                            v
+                        })
+                    )
+            );
+
+
+        // --------------------------------------------------------
+        // Display real eigenspaces
+        // --------------------------------------------------------
 
         $('#evecs').innerHTML =
-            real.length
-                ? real
-                    .map(
-                        (e, i) =>
-                            `v${i + 1} ≈ (${
-                                e.v
-                                    .map(
-                                        x =>
-                                            x.toFixed(2)
-                                    )
-                                    .join(', ')
-                            })<br>
-                            <span class="muted">
-                                Av${i + 1} = ${e.l.toFixed(3)}v${i + 1}
-                            </span>`
-                    )
+            realSpaces.length
+
+                ? realSpaces
+                    .map((space, i) => {
+                        let dimension =
+                            space.basis.length;
+
+
+                        // Entire R^3 is the eigenspace.
+                        if (dimension === 3) {
+                            return (
+                                `E${i + 1}: lambda = ${
+                                    space.l.toFixed(3)
+                                }<br>` +
+
+                                `<span class="muted">` +
+                                `Eigenspace dimension 3: ` +
+                                `every nonzero vector in R^3 ` +
+                                `is an eigenvector.` +
+                                `</span>`
+                            );
+                        }
+
+
+                        let vectors =
+                            space.basis
+                                .map(
+                                    (v, j) =>
+                                        `v${i + 1}.${j + 1} ~= (` +
+                                        v
+                                            .map(
+                                                x =>
+                                                    x.toFixed(2)
+                                            )
+                                            .join(', ')
+                                        +
+                                        ')'
+                                )
+                                .join('<br>');
+
+
+                        return (
+                            `E${i + 1}: lambda = ${
+                                space.l.toFixed(3)
+                            }; dimension ${
+                                dimension
+                            }<br>${
+                                vectors
+                            }`
+                        );
+                    })
                     .join('<br><br>')
 
-                : '<span class="muted">No distinct real direction available.</span>';
+                : '<span class="muted">No real eigenspace available.</span>';
 
 
-        let ce =
+        // --------------------------------------------------------
+        // Complex eigenvalue information
+        // --------------------------------------------------------
+
+        let complexEigenvalue =
             eigs.find(
                 e =>
                     Math.abs(e.im) > 1e-7
             );
 
-        $('#complex').hidden = !ce;
 
-        if (ce) {
+        $('#complex').hidden =
+            !complexEigenvalue;
+
+
+        if (complexEigenvalue) {
             $('#complex').innerHTML =
-                `<b>Complex conjugate pair</b><br>
-                λ = ${ce.re.toFixed(3)}
-                ± ${Math.abs(ce.im).toFixed(3)}i<br>
-                <span class="muted"></span>`;
+                `<b>Complex conjugate pair</b><br>` +
+                `lambda = ${
+                    complexEigenvalue.re.toFixed(3)
+                } +/- ${
+                    Math.abs(
+                        complexEigenvalue.im
+                    ).toFixed(3)
+                }i<br>` +
+                `<span class="muted"></span>`;
         }
 
 
-        let C = mul(A, B);
+        // --------------------------------------------------------
+        // Calculate C = AB and test eigenvector alignment
+        // --------------------------------------------------------
 
-        let nb = norm(B);
-        let nc = norm(C);
+        let C =
+            mul(A, B);
 
-        let cos =
-            nb * nc
-                ? dot(B, C) / (nb * nc)
+        let magnitudeB =
+            norm(B);
+
+        let magnitudeC =
+            norm(C);
+
+
+        let cosine =
+            magnitudeB * magnitudeC
+
+                ? dot(B, C) /
+                  (
+                      magnitudeB *
+                      magnitudeC
+                  )
+
                 : 0;
 
+
+        // Rayleigh quotient.
+        // If B is an eigenvector, this equals its eigenvalue.
         let lambda =
-            nb
-                ? dot(B, C) / (nb * nb)
+            magnitudeB
+
+                ? dot(B, C) /
+                  (
+                      magnitudeB *
+                      magnitudeB
+                  )
+
                 : 0;
 
+
+        // Measure how close C is to lambda * B.
         let residual =
-            nb
+            magnitudeB
+
                 ? norm(
                     sub(
                         C,
-                        scale(B, lambda)
+                        scale(
+                            B,
+                            lambda
+                        )
                     )
                 )
                 /
                 Math.max(
                     1,
-                    nc,
-                    Math.abs(lambda) * nb
+                    magnitudeC,
+                    Math.abs(lambda) *
+                    magnitudeB
                 )
 
                 : Infinity;
 
+
         let aligned =
-            nb > 1e-8 &&
+            magnitudeB > 1e-8 &&
             residual < 1e-5;
 
 
+        // --------------------------------------------------------
+        // Display B / C status
+        // --------------------------------------------------------
+
         $('#vstatus').innerHTML =
-            `B = (${B.map(x => x.toFixed(2)).join(', ')})<br>
-            C = AB = (${C.map(x => x.toFixed(2)).join(', ')})<br>
-            ${
-                nb < 1e-8
+            `B = (${
+                B
+                    .map(
+                        x =>
+                            x.toFixed(2)
+                    )
+                    .join(', ')
+            })<br>` +
+
+            `C = AB = (${
+                C
+                    .map(
+                        x =>
+                            x.toFixed(2)
+                    )
+                    .join(', ')
+            })<br>` +
+
+            (
+                magnitudeB < 1e-8
 
                     ? 'Choose a nonzero B.'
 
                     : aligned
 
-                    ? `<span class="good">
-                           <b>Aligned!</b>
-                           B is on an eigenvector direction.
-                       </span><br>
-                       λ ≈ ${lambda.toFixed(3)}`
+                    ? (
+                        `<span class="good">` +
+                        `<b>Aligned!</b> ` +
+                        `B is on an eigenvector direction.` +
+                        `</span><br>` +
+                        `lambda ~= ${
+                            lambda.toFixed(3)
+                        }`
+                    )
 
-                    : `<span class="warn">
-                           Not aligned yet.
-                       </span><br>
-                       cos θ = ${cos.toFixed(4)}`
-            }`;
+                    : (
+                        `<span class="warn">` +
+                        `Not aligned yet.` +
+                        `</span><br>` +
+                        `cos theta = ${
+                            cosine.toFixed(4)
+                        }`
+                    )
+            );
 
 
         renderEquation(C);
@@ -1223,7 +1747,7 @@
 
 
     // ============================================================
-    // Matrix Equation Display
+    // Live Matrix Equation
     // ============================================================
 
     function fmt(x) {
@@ -1236,68 +1760,64 @@
 
 
     function renderEquation(C) {
-        let mat =
-            '<div class="mat">'
-            +
+        let matrixA =
+            '<div class="mat">' +
+
             A
                 .flat()
                 .map(
                     x =>
-                        '<span>'
-                        +
-                        fmt(x)
-                        +
+                        '<span>' +
+                        fmt(x) +
                         '</span>'
                 )
                 .join('')
+
             +
+
             '</div>';
 
 
-        let bv =
-            '<div class="mat vecmat">'
-            +
+        let vectorB =
+            '<div class="mat vecmat">' +
+
             B
                 .map(
                     x =>
-                        '<span>'
-                        +
-                        fmt(x)
-                        +
+                        '<span>' +
+                        fmt(x) +
                         '</span>'
                 )
                 .join('')
+
             +
+
             '</div>';
 
 
-        let cv =
-            '<div class="mat vecmat">'
-            +
+        let vectorC =
+            '<div class="mat vecmat">' +
+
             C
                 .map(
                     x =>
-                        '<span>'
-                        +
-                        fmt(x)
-                        +
+                        '<span>' +
+                        fmt(x) +
                         '</span>'
                 )
                 .join('')
+
             +
+
             '</div>';
 
 
         $('#equation').innerHTML =
-            mat
-            +
-            '<span class="op">×</span>'
-            +
-            bv
-            +
-            '<span class="op">=</span>'
-            +
-            cv;
+            matrixA +
+            '<span class="op">×</span>' +
+            vectorB +
+            '<span class="op">=</span>' +
+            vectorC;
 
 
         let notes = {
@@ -1305,25 +1825,40 @@
                 'Uniform scaling: A = sI',
 
             nonuniform:
-                `Non-uniform scaling: sx = ${
-                    Number($('#sx').value).toFixed(2)
-                }, sy = ${
-                    Number($('#sy').value).toFixed(2)
-                }, sz = ${
-                    Number($('#sz').value).toFixed(2)
+                `Non-uniform scaling: ` +
+                `sx = ${
+                    Number(
+                        $('#sx').value
+                    ).toFixed(2)
+                }, ` +
+                `sy = ${
+                    Number(
+                        $('#sy').value
+                    ).toFixed(2)
+                }, ` +
+                `sz = ${
+                    Number(
+                        $('#sz').value
+                    ).toFixed(2)
                 }`,
 
             shear:
                 'x-shear: x′ = x + ky',
 
             rotation:
-                `Rotation about the ${rotationAxis.toUpperCase()}-axis by θ`,
+                `Rotation about the ${
+                    rotationAxis.toUpperCase()
+                }-axis by θ`,
 
             reflection:
-                `Reflection across the ${reflectionPlane.toUpperCase()}-plane`,
+                `Reflection across the ${
+                    reflectionPlane.toUpperCase()
+                }-plane`,
 
             projection:
-                `Orthogonal projection onto ${projectionTarget.toUpperCase()}`,
+                `Orthogonal projection onto ${
+                    projectionTarget.toUpperCase()
+                }`,
 
             custom:
                 'Custom 3 × 3 linear transformation'
@@ -1337,42 +1872,137 @@
 
 
     // ============================================================
+    // Draw a 2D Eigenspace Plane
+    // ============================================================
+
+    function fillEigenspacePlane(
+        basis,
+        color
+    ) {
+        let orthonormal =
+            orthonormalBasis(basis);
+
+
+        if (
+            orthonormal.length < 2
+        ) {
+            return;
+        }
+
+
+        let u =
+            scale(
+                orthonormal[0],
+                1.8
+            );
+
+        let v =
+            scale(
+                orthonormal[1],
+                1.8
+            );
+
+
+        let points = [
+            add(u, v),
+            sub(u, v),
+            scale(
+                add(u, v),
+                -1
+            ),
+            sub(v, u)
+        ].map(project);
+
+
+        ctx.beginPath();
+
+        ctx.moveTo(
+            points[0].x,
+            points[0].y
+        );
+
+
+        for (
+            let i = 1;
+            i < points.length;
+            i++
+        ) {
+            ctx.lineTo(
+                points[i].x,
+                points[i].y
+            );
+        }
+
+
+        ctx.closePath();
+
+        ctx.save();
+
+        ctx.globalAlpha =
+            .12;
+
+        ctx.fillStyle =
+            color;
+
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+
+    // ============================================================
     // Draw 3D Scene
     // ============================================================
 
     function draw() {
         resize();
 
-        let w = canvas.clientWidth;
-        let h = canvas.clientHeight;
+
+        let width =
+            canvas.clientWidth;
+
+        let height =
+            canvas.clientHeight;
+
 
         ctx.clearRect(
             0,
             0,
-            w,
-            h
+            width,
+            height
         );
 
 
-        // Ground grid
-        for (let k = -3; k <= 3; k++) {
+        // --------------------------------------------------------
+        // XY ground/grid plane (Z = 0)
+        // --------------------------------------------------------
+
+        for (
+            let k = -3;
+            k <= 3;
+            k++
+        ) {
             line3(
-                [-3, 0, k],
-                [3, 0, k],
+                [-3, k, 0],
+                [3, k, 0],
                 '#1d2939',
                 1
             );
 
             line3(
-                [k, 0, -3],
-                [k, 0, 3],
+                [k, -3, 0],
+                [k, 3, 0],
                 '#1d2939',
                 1
             );
         }
 
 
+        // --------------------------------------------------------
         // Coordinate axes
+        // --------------------------------------------------------
+
+        // X axis
         line3(
             [-3, 0, 0],
             [3, 0, 0],
@@ -1380,6 +2010,7 @@
             1.4
         );
 
+        // Y axis
         line3(
             [0, -3, 0],
             [0, 3, 0],
@@ -1387,6 +2018,7 @@
             1.4
         );
 
+        // Z axis — vertical
         line3(
             [0, 0, -3],
             [0, 0, 3],
@@ -1395,70 +2027,141 @@
         );
 
 
-        // Transformed cube vertices
-        let tv =
+        // --------------------------------------------------------
+        // Transform cube vertices
+        // --------------------------------------------------------
+
+        let transformedVertices =
             verts.map(
-                v => mul(A, v)
+                v =>
+                    mul(A, v)
             );
 
 
+        // --------------------------------------------------------
         // Original cube
-        if ($('#showOriginal').checked) {
-            edges.forEach(e =>
+        // --------------------------------------------------------
+
+        if (
+            $('#showOriginal').checked
+        ) {
+            edges.forEach(edge => {
                 line3(
-                    verts[e[0]],
-                    verts[e[1]],
+                    verts[edge[0]],
+                    verts[edge[1]],
                     '#8492a6',
                     1.5,
                     [5, 5]
-                )
-            );
+                );
+            });
         }
 
 
+        // --------------------------------------------------------
         // Transformed cube
-        if ($('#showTransformed').checked) {
-            edges.forEach(e =>
+        // --------------------------------------------------------
+
+        if (
+            $('#showTransformed').checked
+        ) {
+            edges.forEach(edge => {
                 line3(
-                    tv[e[0]],
-                    tv[e[1]],
+                    transformedVertices[
+                        edge[0]
+                    ],
+
+                    transformedVertices[
+                        edge[1]
+                    ],
+
                     '#62d7e8',
                     3
-                )
+                );
+            });
+        }
+
+
+        // --------------------------------------------------------
+        // Real eigenspaces
+        // --------------------------------------------------------
+
+        if (
+            $('#showEigen').checked
+        ) {
+            let colors = [
+                '#e88cff',
+                '#ffd166',
+                '#a8e063'
+            ];
+
+
+            (
+                window.realEigenspaces ||
+                []
+            ).forEach(
+                (space, i) => {
+                    let color =
+                        colors[
+                            i %
+                            colors.length
+                        ];
+
+
+                    // A 2D eigenspace is displayed
+                    // as a translucent plane.
+                    if (
+                        space.basis.length === 2
+                    ) {
+                        fillEigenspacePlane(
+                            space.basis,
+                            color
+                        );
+                    }
+
+
+                    // Draw basis directions for
+                    // 1D and 2D eigenspaces.
+                    //
+                    // A 3D eigenspace is not given
+                    // special lines because every
+                    // direction is an eigenvector.
+                    if (
+                        space.basis.length < 3
+                    ) {
+                        space.basis.forEach(
+                            basisVector => {
+                                let v =
+                                    scale(
+                                        basisVector,
+                                        2.2
+                                    );
+
+                                line3(
+                                    scale(v, -1),
+                                    v,
+                                    color,
+                                    3
+                                );
+                            }
+                        );
+                    }
+                }
             );
         }
 
 
-        // Eigenvector lines
-        if ($('#showEigen').checked) {
-            (window.realEigs || [])
-                .forEach((e, i) => {
-                    let v =
-                        scale(
-                            e.v,
-                            2.2
-                        );
+        // --------------------------------------------------------
+        // Probe vectors B and C = AB
+        // --------------------------------------------------------
 
-                    let colors = [
-                        '#e88cff',
-                        '#ffd166',
-                        '#a8e063'
-                    ];
-
-                    line3(
-                        scale(v, -1),
-                        v,
-                        colors[i % 3],
-                        3
-                    );
-                });
-        }
+        if (
+            $('#showProbe').checked
+        ) {
+            let C =
+                mul(A, B);
 
 
-        // Probe vectors B and C
-        if ($('#showProbe').checked) {
-            let C = mul(A, B);
-
+            // Input vector B
             arrow(
                 [0, 0, 0],
                 B,
@@ -1466,6 +2169,8 @@
                 5
             );
 
+
+            // Transformed vector C = AB
             arrow(
                 [0, 0, 0],
                 C,
@@ -1474,23 +2179,33 @@
             );
 
 
-            let p = project(B);
+            // Draggable endpoint of B
+            let point =
+                project(B);
+
 
             ctx.beginPath();
 
             ctx.arc(
-                p.x,
-                p.y,
+                point.x,
+                point.y,
                 9,
                 0,
                 Math.PI * 2
             );
 
-            ctx.fillStyle = '#ffb86b';
+
+            ctx.fillStyle =
+                '#ffb86b';
+
             ctx.fill();
 
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
+
+            ctx.strokeStyle =
+                '#fff';
+
+            ctx.lineWidth =
+                2;
 
             ctx.stroke();
         }
@@ -1498,35 +2213,42 @@
 
 
     // ============================================================
-    // Canvas Mouse / Pointer Controls
+    // Canvas Interaction
     // ============================================================
 
     canvas.addEventListener(
         'pointerdown',
-        e => {
+        event => {
             canvas.setPointerCapture(
-                e.pointerId
+                event.pointerId
             );
 
-            let p = project(B);
 
-            let r =
+            let point =
+                project(B);
+
+            let rect =
                 canvas.getBoundingClientRect();
 
+
             let x =
-                e.clientX - r.left;
+                event.clientX -
+                rect.left;
 
             let y =
-                e.clientY - r.top;
+                event.clientY -
+                rect.top;
+
 
             drag =
                 Math.hypot(
-                    x - p.x,
-                    y - p.y
+                    x - point.x,
+                    y - point.y
                 ) < 20
 
                     ? 'vector'
                     : 'camera';
+
 
             last = {
                 x,
@@ -1538,19 +2260,24 @@
 
     canvas.addEventListener(
         'pointermove',
-        e => {
+        event => {
             if (!drag) {
                 return;
             }
 
-            let r =
+
+            let rect =
                 canvas.getBoundingClientRect();
 
+
             let x =
-                e.clientX - r.left;
+                event.clientX -
+                rect.left;
 
             let y =
-                e.clientY - r.top;
+                event.clientY -
+                rect.top;
+
 
             let dx =
                 x - last.x;
@@ -1559,17 +2286,24 @@
                 y - last.y;
 
 
-            if (drag === 'camera') {
-                yaw += dx * .008;
+            // Rotate camera
+            if (
+                drag === 'camera'
+            ) {
+                yaw +=
+                    dx * .008;
 
                 pitch =
                     minmax(
-                        pitch + dy * .008,
+                        pitch +
+                        dy * .008,
+
                         -1.45,
                         1.45
                     );
             }
 
+            // Move vector B
             else {
                 B =
                     snapToEigenvector(
@@ -1589,6 +2323,7 @@
                 y
             };
 
+
             draw();
         }
     );
@@ -1596,33 +2331,42 @@
 
     canvas.addEventListener(
         'pointerup',
-        () => drag = null
+        () => {
+            drag = null;
+        }
     );
 
 
     canvas.addEventListener(
         'pointercancel',
-        () => drag = null
+        () => {
+            drag = null;
+        }
     );
 
 
     canvas.addEventListener(
         'wheel',
-        e => {
-            e.preventDefault();
+        event => {
+            event.preventDefault();
+
 
             zoom =
                 minmax(
                     zoom *
                     Math.exp(
-                        -e.deltaY * .001
+                        -event.deltaY *
+                        .001
                     ),
+
                     35,
                     230
                 );
 
+
             draw();
         },
+
         {
             passive: false
         }
@@ -1630,12 +2374,12 @@
 
 
     // ============================================================
-    // Camera Controls
+    // Camera Reset
     // ============================================================
 
     function resetCamera() {
-        yaw = -.7;
-        pitch = .45;
+        yaw = -0.7;
+        pitch = 0.55;
         zoom = 95;
 
         draw();
@@ -1643,16 +2387,23 @@
 
 
     // ============================================================
-    // Vector B Buttons
+    // Vector B Controls
     // ============================================================
 
     $('#normalize').onclick = () => {
-        let n = norm(B);
+        let magnitude =
+            norm(B);
 
-        if (n > 1e-9) {
+
+        if (
+            magnitude > 1e-9
+        ) {
             B =
                 snapToEigenvector(
-                    scale(B, 1 / n)
+                    scale(
+                        B,
+                        1 / magnitude
+                    )
                 );
 
             syncBInputs();
@@ -1676,33 +2427,43 @@
     };
 
 
+    // ============================================================
+    // Snap Toggle
+    // ============================================================
+
     $('#toggleSnap').onclick = () => {
         snapEnabled =
             !snapEnabled;
 
-        let b =
+
+        let button =
             $('#toggleSnap');
 
-        b.setAttribute(
+
+        button.setAttribute(
             'aria-pressed',
             String(snapEnabled)
         );
 
-        b.textContent =
-            'Toggle Snap to Eigenvectors: '
-            +
+
+        button.textContent =
+            'Toggle Snap to Eigenvectors: ' +
             (
                 snapEnabled
                     ? 'On'
                     : 'Off'
             );
 
-        b.classList.toggle(
+
+        button.classList.toggle(
             'primary',
             snapEnabled
         );
 
-        if (snapEnabled) {
+
+        if (
+            snapEnabled
+        ) {
             B =
                 snapToEigenvector(B);
 
@@ -1711,6 +2472,10 @@
         }
     };
 
+
+    // ============================================================
+    // Other UI Events
+    // ============================================================
 
     $('#resetCamera').onclick =
         resetCamera;
@@ -1741,8 +2506,11 @@
 
 
     $('#animate').onclick = () => {
+        // Stop current animation.
         if (raf) {
-            cancelAnimationFrame(raf);
+            cancelAnimationFrame(
+                raf
+            );
 
             raf = 0;
 
@@ -1753,13 +2521,18 @@
         }
 
 
-        if ($('#t').disabled) {
+        // Custom matrices do not have
+        // an animation parameter.
+        if (
+            $('#t').disabled
+        ) {
             return;
         }
 
 
         $('#animate').textContent =
             'Stop';
+
 
         start =
             performance.now();
@@ -1774,7 +2547,8 @@
                 /
                 4200;
 
-            let s =
+
+            let interpolation =
                 .5 -
                 .5 *
                 Math.cos(
@@ -1783,21 +2557,36 @@
                     2
                 );
 
-            let t = $('#t');
 
-            let lo =
-                Number(t.min);
+            let slider =
+                $('#t');
 
-            let hi =
-                Number(t.max);
 
-            t.value =
+            let minimum =
+                Number(
+                    slider.min
+                );
+
+            let maximum =
+                Number(
+                    slider.max
+                );
+
+
+            slider.value =
                 (
-                    lo +
-                    (hi - lo) * s
+                    minimum +
+                    (
+                        maximum -
+                        minimum
+                    )
+                    *
+                    interpolation
                 ).toFixed(3);
 
+
             applyParam();
+
 
             raf =
                 requestAnimationFrame(
@@ -1821,6 +2610,7 @@
         'resize',
         draw
     );
+
 
     syncBInputs();
     configureParam(true);
