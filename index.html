@@ -171,16 +171,52 @@ function fillPlane(basis,color,alpha=.12,dashed=false){
 }
 function fillEigenspacePlane(basis,color){fillPlane(basis,color,.12,false)}
 function spherePoint(latitude,longitude){let cl=Math.cos(latitude);return[cl*Math.cos(longitude),cl*Math.sin(longitude),Math.sin(latitude)]}
-function drawSphereWireframe(transform,color,width,dash=[]){
- const latitudes=[-60,-30,0,30,60].map(d=>d*Math.PI/180),segments=48;
- for(let lat of latitudes){let prev=transform(spherePoint(lat,0));for(let j=1;j<=segments;j++){let p=transform(spherePoint(lat,j*2*Math.PI/segments));line3(prev,p,color,width,dash);prev=p}}
- const longitudes=12;
- for(let i=0;i<longitudes;i++){let lon=i*Math.PI/longitudes,prev=transform(spherePoint(-Math.PI/2,lon));for(let j=1;j<=24;j++){let lat=-Math.PI/2+j*Math.PI/24,p=transform(spherePoint(lat,lon));line3(prev,p,color,width,dash);prev=p}}
+
+function hexToRgb(hex){let n=parseInt(hex.replace('#',''),16);return[n>>16,(n>>8)&255,n&255]}
+
+function drawShadedSphere(transform, colorHex, opacity = 0.35, dash = []){
+ const latSteps=18, lonSteps=36, quads=[], rgb=hexToRgb(colorHex), L=normalize([0.4, 0.6, 0.8]);
+ 
+ for(let i = 0; i < latSteps; i++){
+  let lat0 = -Math.PI/2 + i * Math.PI / latSteps, lat1 = -Math.PI/2 + (i + 1) * Math.PI / latSteps;
+  for(let j = 0; j < lonSteps; j++){
+   let lon0 = j * 2 * Math.PI / lonSteps, lon1 = (j + 1) * 2 * Math.PI / lonSteps;
+   let v0 = spherePoint(lat0, lon0), v1 = spherePoint(lat1, lon0), v2 = spherePoint(lat1, lon1), v3 = spherePoint(lat0, lon1);
+   let w0 = transform(v0), w1 = transform(v1), w2 = transform(v2), w3 = transform(v3);
+   let r0 = rot(w0), r1 = rot(w1), r2 = rot(w2), r3 = rot(w3);
+   let avgDepth = (r0[2] + r1[2] + r2[2] + r3[2]) / 4;
+   let n = cross(sub(w3, w0), sub(w1, w0)), len = norm(n);
+   n = len > 1e-8 ? scale(n, 1 / len) : [0, 0, 1];
+   let diff = Math.max(0, dot(n, L)), brightness = 0.35 + 0.65 * diff;
+   quads.push({ depth: avgDepth, pts: [project(w0), project(w1), project(w2), project(w3)], brightness });
+  }
+ }
+ 
+ quads.sort((a, b) => b.depth - a.depth);
+ 
+ ctx.save();
+ for(let q of quads){
+  let r = Math.round(rgb[0] * q.brightness), g = Math.round(rgb[1] * q.brightness), b = Math.round(rgb[2] * q.brightness);
+  ctx.fillStyle = `rgba(${r},${g},${b},${opacity})`;
+  ctx.strokeStyle = `rgba(${r},${g},${b},${opacity * 0.5})`;
+  ctx.lineWidth = 0.5;
+  if(dash.length) ctx.setLineDash(dash);
+  ctx.beginPath();
+  ctx.moveTo(q.pts[0].x, q.pts[0].y);
+  ctx.lineTo(q.pts[1].x, q.pts[1].y);
+  ctx.lineTo(q.pts[2].x, q.pts[2].y);
+  ctx.lineTo(q.pts[3].x, q.pts[3].y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+ }
+ ctx.restore();
 }
+
 function setShapeVisual(shape){shapeVisual=shape;$('#shapeCube').classList.toggle('active',shape==='cube');$('#shapeSphere').classList.toggle('active',shape==='sphere');$('#originalLegend').textContent='original '+shape;$('#transformedLegend').textContent='transformed '+shape;draw()}
 $('#shapeCube').onclick=()=>setShapeVisual('cube');
 $('#shapeSphere').onclick=()=>setShapeVisual('sphere');
-function draw(){resize();let w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);for(let k=-3;k<=3;k++){line3([-3,k,0],[3,k,0],'#1d2939',1);line3([k,-3,0],[k,3,0],'#1d2939',1)}line3([-3,0,0],[3,0,0],'#7b8797',1.4);line3([0,-3,0],[0,3,0],'#7b8797',1.4);line3([0,0,-3],[0,0,3],'#7b8797',1.4);let tv=verts.map(v=>mul(A,v));if(shapeVisual==='cube'){if($('#showOriginal').checked)edges.forEach(e=>line3(verts[e[0]],verts[e[1]],'#8492a6',1.5,[5,5]));if($('#showTransformed').checked)edges.forEach(e=>line3(tv[e[0]],tv[e[1]],'#62d7e8',3))}else{if($('#showOriginal').checked)drawSphereWireframe(v=>v,'#8492a6',1.2,[4,4]);if($('#showTransformed').checked)drawSphereWireframe(v=>mul(A,v),'#62d7e8',2)}if($('#showEigen').checked){let colors=['#e88cff','#ffd166','#a8e063'];(window.realEigenspaces||[]).forEach((space,i)=>{let color=colors[i%3];if(space.basis.length===2)fillEigenspacePlane(space.basis,color);if(space.basis.length<3)space.basis.forEach(b=>{let v=scale(b,2.2);line3(scale(v,-1),v,color,3)})});if(window.complexInvariantPlane)fillPlane(window.complexInvariantPlane.basis,'#6ea8fe',.10,true)}if($('#showProbe').checked){let C=mul(A,B);arrow([0,0,0],B,'#ffb86b',5);arrow([0,0,0],C,'#63d6a3',5);let p=project(B);ctx.beginPath();ctx.arc(p.x,p.y,9,0,Math.PI*2);ctx.fillStyle='#ffb86b';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke()}}
+function draw(){resize();let w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);for(let k=-3;k<=3;k++){line3([-3,k,0],[3,k,0],'#1d2939',1);line3([k,-3,0],[k,3,0],'#1d2939',1)}line3([-3,0,0],[3,0,0],'#7b8797',1.4);line3([0,-3,0],[0,3,0],'#7b8797',1.4);line3([0,0,-3],[0,0,3],'#7b8797',1.4);let tv=verts.map(v=>mul(A,v));if(shapeVisual==='cube'){if($('#showOriginal').checked)edges.forEach(e=>line3(verts[e[0]],verts[e[1]],'#8492a6',1.5,[5,5]));if($('#showTransformed').checked)edges.forEach(e=>line3(tv[e[0]],tv[e[1]],'#62d7e8',3))}else{if($('#showOriginal').checked)drawShadedSphere(v=>v,'#8492a6',0.25,[4,4]);if($('#showTransformed').checked)drawShadedSphere(v=>mul(A,v),'#62d7e8',0.45)}if($('#showEigen').checked){let colors=['#e88cff','#ffd166','#a8e063'];(window.realEigenspaces||[]).forEach((space,i)=>{let color=colors[i%3];if(space.basis.length===2)fillEigenspacePlane(space.basis,color);if(space.basis.length<3)space.basis.forEach(b=>{let v=scale(b,2.2);line3(scale(v,-1),v,color,3)})});if(window.complexInvariantPlane)fillPlane(window.complexInvariantPlane.basis,'#6ea8fe',.10,true)}if($('#showProbe').checked){let C=mul(A,B);arrow([0,0,0],B,'#ffb86b',5);arrow([0,0,0],C,'#63d6a3',5);let p=project(B);ctx.beginPath();ctx.arc(p.x,p.y,9,0,Math.PI*2);ctx.fillStyle='#ffb86b';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke()}}
 canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);let p=project(B),r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;drag=Math.hypot(x-p.x,y-p.y)<20?'vector':'camera';last={x,y}});canvas.addEventListener('pointermove',e=>{if(!drag)return;let r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,dx=x-last.x,dy=y-last.y;if(drag==='camera'){yaw+=dx*.008;pitch=minmax(pitch+dy*.008,-1.45,1.45)}else{B=snapToEigenvector(worldFromScreenOnViewPlane(x,y));syncBInputs();update()}last={x,y};draw()});canvas.addEventListener('pointerup',()=>drag=null);canvas.addEventListener('pointercancel',()=>drag=null);canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=minmax(zoom*Math.exp(-e.deltaY*.001),35,230);draw()},{passive:false});
 function resetCamera(){yaw=-.7;pitch=.55;zoom=95;draw()}
 $('#normalize').onclick=()=>{let n=norm(B);if(n>1e-9){B=snapToEigenvector(scale(B,1/n));syncBInputs();update()}};$('#randomize').onclick=()=>{B=snapToEigenvector(normalize([Math.random()*2-1,Math.random()*2-1,Math.random()*2-1]));syncBInputs();update()};$('#toggleSnap').onclick=()=>{snapEnabled=!snapEnabled;let b=$('#toggleSnap');b.setAttribute('aria-pressed',String(snapEnabled));b.textContent='Toggle Snap to Eigenvectors: '+(snapEnabled?'On':'Off');b.classList.toggle('primary',snapEnabled);if(snapEnabled){B=snapToEigenvector(B);syncBInputs();update()}};$('#resetCamera').onclick=resetCamera;$('#t').oninput=()=>{applyParam()};['showOriginal','showTransformed','showEigen','showProbe'].forEach(id=>$('#'+id).onchange=draw);
